@@ -160,6 +160,20 @@ defmodule Ecto.RepoTest do
     end
   end
 
+  defmodule MySchemaAllAssoc do
+    use Ecto.Schema
+
+    schema "my_schema" do
+      field :n, :integer
+      field :x, :string
+      belongs_to :parent, MySchemaAllAssoc
+      has_one :brother, MySchemaAllAssoc, references: :n, foreign_key: :n
+      has_one :sister, MySchemaAllAssoc, references: :n, foreign_key: :n
+      has_many :sons, MySchemaAllAssoc, references: :n, foreign_key: :n
+      has_many :daughters, MySchemaAllAssoc, references: :n, foreign_key: :n
+    end
+  end
+
   defmodule MySchemaNoPK do
     use Ecto.Schema
 
@@ -1515,6 +1529,27 @@ defmodule Ecto.RepoTest do
 
       assert [%{id: 1, x: "new_x_1", y: "old_y_1"}, %{id: new_id, x: nil}] = inserted.embeds
       assert new_id != data_embed2.id
+    end
+
+    test "insert preloads empty relations" do
+      brother_changeset = Ecto.Changeset.change(%MySchemaAllAssoc{x: "brother"})
+      son_changeset = Ecto.Changeset.change(%MySchemaAllAssoc{x: "son"})
+
+      inserted =
+        %MySchemaAllAssoc{x: "me"}
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.put_assoc(:brother, brother_changeset)
+        |> Ecto.Changeset.put_assoc(:sons, [son_changeset])
+        |> TestRepo.insert!()
+
+      assert %{
+        x: "me",
+        brother: %MySchemaAllAssoc{x: "brother"},
+        sister: nil,
+        sons: [%MySchemaAllAssoc{x: "son"}],
+        daughters: [],
+        parent: %Ecto.Association.NotLoaded{}
+      } = inserted
     end
   end
 
